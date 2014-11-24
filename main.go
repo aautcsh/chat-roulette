@@ -5,6 +5,7 @@ import (
   "io"
   "log"
   "github.com/longda/markov"
+  "net"
   "net/http"
   "time"
 
@@ -16,6 +17,7 @@ import (
 const LISTEN_ADDR = "localhost:4000"
 
 func main() {
+  go netListen()
   http.HandleFunc("/", rootHandler)
   http.Handle("/socket", websocket.Handler(socketHandler))
 
@@ -23,6 +25,22 @@ func main() {
 
   if err != nil {
     log.Fatal(err)
+  }
+}
+
+func netListen() {
+  l, err := net.Listen("tcp", "localhost:4001")
+  if err != nil {
+    log.Fatal(err)
+  }
+
+  for {
+    c, err := l.Accept()
+    if err != nil {
+      log.Fatal(err)
+    }
+
+    go match(c)
   }
 }
 
