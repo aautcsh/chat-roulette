@@ -4,7 +4,9 @@ import (
   "fmt"
   "io"
   "log"
+  "github.com/longda/markov"
   "net/http"
+  "time"
 
   "code.google.com/p/go.net/websocket"
 
@@ -92,7 +94,8 @@ window.addEventListener("load", init, false);
   `))
 
 type socket struct {
-  io.ReadWriter
+  io.Reader
+  io.Writer
   done chan bool
 }
 
@@ -101,8 +104,16 @@ func (s socket) Close() error {
   return nil
 }
 
+var chain = markov.NewChain(2) // 2-word prefixes
+
 func socketHandler(ws * websocket.Conn) {
-  s := socket{ws, make(chan bool)}
+  r, w := io.Pipe()
+  go func() {
+    _, err := io.Copy(io.MultiWriter(w, chain), ws)
+    w.CloseWithError(err)
+  }()
+
+  s := socket{r, ws, make(chan bool)}
   go match(s)
   <- s.done
 }
@@ -114,9 +125,11 @@ func match(c io.ReadWriteCloser) {
     
     select {
     case partner <- c:
-        // now handled by the other goroutine
+      // now handled by the other goroutine
     case p := <-partner:
-        chat(p, c)
+      chat(p, c)
+    case <- time.After(5 * time.Second):
+      chat(Bot(), c)
     }
 }
 
@@ -140,4 +153,26 @@ func chat(a, b io.ReadWriteCloser) {
 func cp(w io.Writer, r io.Reader, errc chan<- error) {
     _, err := io.Copy(w, r)
     errc <- err
+}
+
+// Bot returns an io.ReadWriteCloser that responds to each incoming write with a generated sentence.
+func Bot() io.ReadWriteCloser {
+  r, out := io.Pipe() // for outgoing data
+  return bot{r, out}
+}
+
+type bot struct {
+  io.ReadCloser
+  out io.Writer
+}
+
+func (b bot) Write(buf []byte) (int, error) {
+  go b.speak()
+  return len(buf), nil
+}
+
+func (b bot) speak() {
+  time.Sleep(time.Second)
+  msg := chain.Generate(10) // at most 10 words
+  b.out.Write([]byte(msg))
 }
