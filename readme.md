@@ -1,2 +1,2 @@
-<img src="http://i.giphy.com/26BRrBJnnsiRPjrFK.gif" alt="chat roulette" />
+<img src="http://i.giphy.com/aQ5UllFsEk1Ve.gif" alt="chat roulette" />
 
